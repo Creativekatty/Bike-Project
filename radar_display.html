@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike Radar Display</title>
+<style>
+  :root {
+    --bg: #04100a;
+    --panel: #07180f;
+    --line: #14532d;
+    --grid: #1f7a45;
+    --text: #b7f7cc;
+    --dim: #5fa77a;
+    --approach: #ff4d4d;
+    --away: #5dff8f;
+    --sweep: #39ff7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    min-height: 100vh;
+  }
+  h1 { font-size: 16px; letter-spacing: 0.2em; margin: 0 0 12px; text-transform: uppercase; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+  .screen {
+    background: radial-gradient(circle at 50% 100%, #0a2616 0%, var(--bg) 70%);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+  }
+  canvas { width: 100%; height: auto; display: block; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .panel h2 { font-size: 12px; margin: 0 0 8px; color: var(--dim); letter-spacing: 0.15em; text-transform: uppercase; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button, select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--grid);
+    border-radius: 6px; padding: 8px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--sweep); }
+  .status { font-size: 12px; color: var(--dim); margin-bottom: 12px; line-height: 1.6; }
+  .status b { color: var(--text); font-weight: normal; }
+  .alarm { padding: 8px; border-radius: 6px; text-align: center; margin-bottom: 12px;
+           border: 1px solid var(--line); color: var(--dim); }
+  .alarm.on { border-color: var(--approach); color: var(--approach); animation: blink 0.8s infinite; }
+  @keyframes blink { 50% { background: #3a0d0d; } }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 2px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: normal; }
+  .approach { color: var(--approach); } .away { color: var(--away); } .gone { color: var(--dim); }
+  .empty { color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>Bike Radar</h1>
+  <div class="layout">
+    <div class="screen"><canvas id="radar" width="900" height="520"></canvas></div>
+    <div>
+      <div class="panel">
+        <div class="row">
+          <button id="connect">Connect radar</button>
+          <button id="demo">Demo</button>
+        </div>
+        <div class="row">
+          <label for="range" class="status" style="margin:0;align-self:center">Range</label>
+          <select id="range">
+            <option value="25">25 m</option>
+            <option value="50">50 m</option>
+            <option value="100" selected>100 m</option>
+          </select>
+        </div>
+        <div class="status" id="status">Not connected. Close the PlatformIO serial monitor and the Arduino IDE first, then click Connect radar and choose the board's port.</div>
+        <div class="alarm" id="alarm">CLEAR</div>
+        <h2>Tracked</h2>
+        <div id="targets" class="empty">Nothing detected</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('radar');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const cx = W / 2, cy = H - 30;           // radar sits at the bottom centre
+const R = Math.min(W / 2 - 30, H - 60);  // outer ring radius in pixels
+
+const SWEEP_MS = 3000;                   // one full sweep left-to-right
+const LOST_AFTER_MS = 2500;              // no update this long = target is gone
+const KEEP_GONE_MS = 6000;               // keep a finished track on screen this long
+const TRAIL_POINTS = 40;                 // positions remembered per track
+const MATCH_DIST_M = 20;                 // max jump in distance between two frames, same target
+const MATCH_ANGLE_DEG = 30;              // max jump in angle between two frames, same target
+let maxRange = 100;                      // metres at the outer ring
+
+let tracks = [];                         // see updateTracks()
+let nextId = 1;
+let frames = 0, lastFrameAt = 0;
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// Angle 0 = straight ahead (up), positive = to the right
+function toXY(angleDeg, dist) {
+  const a = angleDeg * Math.PI / 180;
+  const r = Math.min(dist / maxRange, 1) * R;
+  return [cx + Math.sin(a) * r, cy - Math.cos(a) * r];
+}
+
+// Follow each target from frame to frame. The radar gives no target IDs, so every new
+// reading is matched to the nearest existing track (closest in distance and angle).
+function updateTracks(targets) {
+  const now = performance.now();
+  const live = tracks.filter(t => !t.gone);
+  const used = new Set();
+  for (const tg of targets) {
+    let best = null, bestScore = Infinity;
+    for (const t of live) {
+      if (used.has(t)) continue;
+      const dd = Math.abs(t.dist - tg.dist), da = Math.abs(t.angle - tg.angle);
+      if (dd > MATCH_DIST_M || da > MATCH_ANGLE_DEG) continue;
+      const score = dd + da * 0.5;
+      if (score < bestScore) { best = t; bestScore = score; }
+    }
+    if (best) {
+      used.add(best);
+      Object.assign(best, { angle: tg.angle, dist: tg.dist, approaching: tg.approaching,
+                            speed: tg.speed, lastSeen: now });
+      best.trail.push({ angle: tg.angle, dist: tg.dist });
+      if (best.trail.length > TRAIL_POINTS) best.trail.shift();
+    } else {
+      const t = { id: nextId++, angle: tg.angle, dist: tg.dist, approaching: tg.approaching,
+                  speed: tg.speed, firstSeen: now, lastSeen: now, gone: false, goneAt: 0,
+                  lastDist: tg.dist, trail: [{ angle: tg.angle, dist: tg.dist }] };
+      tracks.push(t); live.push(t); used.add(t);
+    }
+  }
+  frames++; lastFrameAt = Date.now();
+}
+
+function ageTracks(now) {
+  for (const t of tracks) {
+    if (!t.gone && now - t.lastSeen > LOST_AFTER_MS) { t.gone = true; t.goneAt = now; t.lastDist = t.dist; }
+  }
+  tracks = tracks.filter(t => !t.gone || now - t.goneAt < KEEP_GONE_MS);
+}
+
+function draw(now) {
+  ageTracks(now);
+  ctx.clearRect(0, 0, W, H);
+
+  // Range rings and labels
+  ctx.lineWidth = 1;
+  ctx.font = '12px ui-monospace, Consolas, monospace';
+  for (let i = 1; i <= 4; i++) {
+    const r = R * i / 4;
+    ctx.strokeStyle = css('--grid');
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 2 * Math.PI); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = css('--dim');
+    ctx.fillText(Math.round(maxRange * i / 4) + ' m', cx + 6, cy - r + 14);
+  }
+  // Angle spokes every 30 degrees
+  for (let a = -90; a <= 90; a += 30) {
+    const [x, y] = toXY(a, maxRange);
+    ctx.strokeStyle = css('--grid'); ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = css('--dim');
+    const [lx, ly] = toXY(a, maxRange * 1.07);
+    ctx.textAlign = 'center'; ctx.fillText(a + '°', lx, ly);
+  }
+  ctx.textAlign = 'left';
+
+  // Rotating sweep (left to right and back), with a fading trail
+  const phase = (now % (2 * SWEEP_MS)) / SWEEP_MS;
+  const sweep = (phase < 1 ? phase : 2 - phase) * 180 - 90;
+  for (let i = 0; i < 40; i++) {
+    const dir = phase < 1 ? -1 : 1;
+    const a = sweep + dir * i * 0.9;
+    if (a < -90 || a > 90) continue;
+    const [x, y] = toXY(a, maxRange);
+    ctx.strokeStyle = css('--sweep');
+    ctx.globalAlpha = 0.28 * (1 - i / 40);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.lineWidth = 1;
+
+  // Tracks: a trail behind each target and a labelled dot at its latest position
+  for (const t of tracks) {
+    const fade = t.gone ? Math.max(0, 1 - (now - t.goneAt) / KEEP_GONE_MS) * 0.5 : 1;
+    const col = t.gone ? css('--dim') : (t.approaching ? css('--approach') : css('--away'));
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    for (let i = 1; i < t.trail.length; i++) {
+      const [x0, y0] = toXY(t.trail[i - 1].angle, t.trail[i - 1].dist);
+      const [x1, y1] = toXY(t.trail[i].angle, t.trail[i].dist);
+      ctx.globalAlpha = fade * (i / t.trail.length) * 0.8;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    const [x, y] = toXY(t.angle, t.dist);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = fade * 0.25;
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, 2 * Math.PI); ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = css('--text');
+    ctx.fillText('#' + t.id + ' ' + t.dist + ' m', x + 12, y - 8);
+  }
+  ctx.globalAlpha = 1; ctx.lineWidth = 1;
+
+  // Radar origin
+  ctx.fillStyle = css('--sweep');
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fill();
+
+  requestAnimationFrame(draw);
+}
+
+function renderPanel() {
+  const t = document.getElementById('targets');
+  const al = document.getElementById('alarm');
+  const live = tracks.filter(x => !x.gone);
+  const closing = live.filter(x => x.approaching);
+  al.className = 'alarm' + (closing.length ? ' on' : '');
+  al.textContent = closing.length ? 'APPROACHING: ' + Math.min(...closing.map(x => x.dist)) + ' m'
+                                  : (live.length ? 'MOVING AWAY' : 'CLEAR');
+  if (!tracks.length) { t.className = 'empty'; t.textContent = 'Nothing detected'; return; }
+  t.className = '';
+  const sorted = [...tracks].sort((a, b) => (a.gone - b.gone) || (a.dist - b.dist));
+  t.innerHTML = '<table><tr><th>#</th><th>Dist</th><th>Speed</th><th>Status</th><th>Time</th></tr>' +
+    sorted.map(c => {
+      let status, cls;
+      if (c.gone) { status = c.lastDist >= maxRange * 0.9 ? 'out of range' : 'lost'; cls = 'gone'; }
+      else if (c.approaching) { status = 'toward'; cls = 'approach'; }
+      else { status = 'away'; cls = 'away'; }
+      // Seconds until it reaches the bike at its current closing speed
+      const eta = (!c.gone && c.approaching && c.speed > 0) ? Math.round(c.dist / (c.speed / 3.6)) + ' s' : '';
+      const seen = Math.round(((c.gone ? c.goneAt : performance.now()) - c.firstSeen) / 1000) + ' s';
+      return `<tr class="${cls}"><td>${c.id}</td><td>${c.dist} m</td><td>${c.speed} km/h</td>` +
+             `<td>${status}</td><td>${eta || seen}</td></tr>`;
+    }).join('') + '</table>' +
+    '<div class="status" style="margin-top:8px">Time: seconds until it reaches you (approaching), otherwise how long it was tracked.</div>';
+}
+
+function updateStatus(text) {
+  document.getElementById('status').innerHTML = text;
+}
+
+// Parser for the lines radar_test.cpp prints:
+//   targets: 2, alarm: APPROACHING
+//   target 1: angle -5 deg, distance 23 m, approaching, speed 41 km/h, SNR 77
+let pending = [], expected = 0;
+function handleLine(line) {
+  // Empty radar frame: nothing detected
+  if (/^Frame\s+\d+\s+raw:\s*$/.test(line.trim())) { updateTracks([]); return; }
+  let m = line.match(/targets:\s*(\d+),\s*alarm:\s*(\S+)/);
+  if (m) {
+    expected = +m[1]; pending = [];
+    if (expected === 0) updateTracks([]);
+    return;
+  }
+  m = line.match(/target\s+\d+:\s*angle\s+(-?\d+)\s*deg,\s*distance\s+(\d+)\s*m,\s*(approaching|moving away),\s*speed\s+(\d+)\s*km\/h/);
+  if (m && expected > 0) {
+    pending.push({ angle: +m[1], dist: +m[2], approaching: m[3] === 'approaching', speed: +m[4] });
+    if (pending.length === expected) updateTracks(pending);
+  }
+}
+
+// Web Serial connection (Chrome / Edge)
+let port = null, reader = null, demoTimer = null;
+async function connect() {
+  if (!('serial' in navigator)) {
+    updateStatus('This browser has no Web Serial. Open this file in Chrome or Edge.');
+    return;
+  }
+  try {
+    stopDemo();
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    updateStatus('Connected. Waiting for radar frames...');
+    document.getElementById('connect').textContent = 'Disconnect';
+    const decoder = new TextDecoderStream();
+    port.readable.pipeTo(decoder.writable).catch(() => {});
+    reader = decoder.readable.getReader();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let i;
+      while ((i = buf.search(/\r?\n/)) >= 0) {
+        handleLine(buf.slice(0, i));
+        buf = buf.slice(buf[i] === '\r' ? i + 2 : i + 1);
+      }
+    }
+  } catch (e) {
+    updateStatus('Could not open the port: ' + e.message + '<br>Close any serial monitor that is using it.');
+  }
+  disconnectCleanup();
+}
+async function disconnect() {
+  try { if (reader) await reader.cancel(); } catch (e) {}
+  try { if (port) await port.close(); } catch (e) {}
+  disconnectCleanup();
+}
+function disconnectCleanup() {
+  port = null; reader = null;
+  document.getElementById('connect').textContent = 'Connect radar';
+}
+
+// Demo mode: two fake vehicles driving up behind the bike, so the display can be checked
+// without the radar
+function startDemo() {
+  updateStatus('Demo mode: simulated vehicles.');
+  let a = { d: 100, ang: -15, v: 60 }, b = { d: 60, ang: 12, v: 25 };
+  demoTimer = setInterval(() => {
+    const out = [];
+    for (const o of [a, b]) {
+      o.d -= o.v / 3.6 * 0.3;                       // metres per 300 ms tick
+      if (o.d < -5) { o.d = 100; o.ang = Math.round(Math.random() * 40 - 20); }
+      if (o.d > 0) out.push({ angle: o.ang, dist: Math.round(o.d), approaching: true, speed: o.v });
+    }
+    updateTracks(out);
+  }, 300);
+}
+function stopDemo() { if (demoTimer) { clearInterval(demoTimer); demoTimer = null; } }
+
+document.getElementById('connect').onclick = () => port ? disconnect() : connect();
+document.getElementById('demo').onclick = () => {
+  if (demoTimer) { stopDemo(); tracks = []; updateStatus('Demo stopped.'); }
+  else startDemo();
+};
+document.getElementById('range').onchange = e => { maxRange = +e.target.value; };
+
+// Live status line while connected
+setInterval(() => {
+  if (!port) return;
+  const ago = lastFrameAt ? ((Date.now() - lastFrameAt) / 1000).toFixed(1) + ' s ago' : 'none yet';
+  updateStatus(`Connected. Frames: <b>${frames}</b>, last: <b>${ago}</b>`);
+}, 500);
+
+setInterval(renderPanel, 200);
+renderPanel();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
