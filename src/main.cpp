@@ -5,7 +5,7 @@
 // Buttons wired between their GPIO and GPIO40 (uses the internal pull-ups;
 // GPIO40 is driven LOW to act as the buttons' ground)
 const int LEFT_BUTTON_PIN = 2;
-const int RIGHT_BUTTON_PIN = 12;
+const int RIGHT_BUTTON_PIN = 41;  // was 12, which is a camera data pin
 const int BUTTON_GND_PIN = 40;
 // TRIG/PWM input of the MOSFET switch module (kept ON so the rings have power)
 const int SWITCH_PIN = 45;

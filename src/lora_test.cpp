@@ -18,11 +18,12 @@
 // Bike unit: Waveshare ESP32-S3-SIM7670G (env:lora_bike_test)
 const char* MY_NAME = "BIKE";
 const char* OTHER_NAME = "EXT";
+// GPIO7/8 are also camera data lines (Y2/Y3): the camera can't run while LoRa uses them.
 const int LORA_RX_PIN = 7;    // ESP32 receives here (E32 TXD)
 const int LORA_TX_PIN = 8;    // ESP32 sends here (E32 RXD)
-const int LORA_M0_PIN = 4;
-const int LORA_M1_PIN = 5;
-const int LORA_AUX_PIN = 6;   // -1 if AUX is not wired
+const int LORA_M0_PIN = -1;   // not wired to the ESP32: tie M0 and M1 to GND by hand
+const int LORA_M1_PIN = -1;
+const int LORA_AUX_PIN = -1;  // -1 if AUX is not wired
 const unsigned long SEND_INTERVAL_MS = 3500;
 #elif defined(LORA_ESP32_WROOM)
 // External unit: classic ESP32 WROOM dev board (env:lora_esp32_wroom)
