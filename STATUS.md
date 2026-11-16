@@ -22,12 +22,32 @@
 |---|---|---|
 | 🔴 | **Radar** | **Cooked.** Zero data on the Waveshare |
 | 🟡 | **IMU** | Not connected properly — needs to be looked back at |
-| 🟡 | **Back lights** | Need to be looked at (not tested, no code yet) |
-| 🟡 | **LoRa** | Program runs, but the radio link isn't proven yet |
+| 🟡 | **Back lights** | Need to be looked at — **power and wires need to be checked** to turn them on |
+| 🟡 | **LoRa** | Fully wired + program runs, but the radio link isn't proven yet |
 | ⚪ | **Front lights, buttons, speaker** | Soldered, **not tested** on the new wiring yet |
 | 🟢 | **Waveshare board** | Alive! Uploads work on **COM9** |
 
 > 💡 **Next tiny step:** check the radar's 5V and GND with a multimeter. That's it. Just that one thing. 💕
+
+---
+
+## 🏆 Done So Far (look how much you did!! 🎉)
+
+**✅ Works (tested by actually running it):**
+- 💅 **Waveshare board** uploads on **COM9** — Hello World test prints every second
+- 📶 **Freenove LoRa module** answered and reported its settings
+- 📡 **Radar tuning** (100 m range, both directions, 1 km/h min speed) was accepted and read back on the Freenove — back when the radar still worked
+- 🖥️ **Radar screen** (`radar_display.html`) showed live radar frames — then got upgraded by jdriver0406 ("radar implemented into app")
+- 📶 **Bike LoRa program** uploads and runs on the Waveshare, sending `BIKE ping` every 3 s
+
+**🔧 Done (built or soldered, not fully tested yet):**
+- 🔘 Buttons soldered: left **2**, right **41**, shared ground **40** (right button moved off 12 in code ✅)
+- 💡 Front light data pins soldered: left **3**, right **42**
+- 🔌 All **3 LED controller boards** soldered + tied to **GPIO45**
+- 🔊 Speaker board soldered to **39**
+- 📶 Bike LoRa **fully wired**: TXD → **7**, RXD → **8**, M0 + M1 → GND, antenna on
+- 🧭 IMU wired — the board can **see** it at `0x68` (but can't read it yet)
+- 📁 Repo on GitHub, synced and up to date
 
 ---
 
@@ -68,6 +88,17 @@
 
 ## 👀 Back lights — need to be looked at
 
+- 🔌 **The power and wires need to be checked to turn on the back LEDs!**
+  - [ ] **5V** reaching both rear LED boards? (multimeter!)
+  - [ ] **GND** joined to the Waveshare GND?
+  - [ ] Data wires on the right pins?
+
+  | 🌙 Back light | GPIO |
+  |---|---|
+  | rear-left blinker data | **4** |
+  | rear-right blinker data | **5** |
+  | brake lights data | **6** |
+
 - 🚫 **No code yet** for rear blinkers, brake lights, or the rear on/off
 - 🧪 Wiring **not tested**
 - 🔗 All 3 LED controller boards are tied to **GPIO45** → front and rear switch on/off **together** (a rear-only "day mode" would need a physical switch or a free pin)
@@ -78,7 +109,7 @@
 ## 🌗 LoRa (E32-915T20D)
 
 - ✅ **Freenove unit:** module answered and reported its settings (address 0, channel 6 ≈ 906 MHz, 9600 baud, 20 dBm)
-- 🟡 **Bike unit (Waveshare):** program runs and sends `BIKE ping` every 3 s — but nobody was listening, so the radio link is **unproven**
+- 🟡 **Bike unit (Waveshare):** fully wired (TXD → 7, RXD → 8, M0 + M1 → GND, antenna on). Program runs and sends `BIKE ping` every 3 s — but the Freenove wasn't plugged in to listen, so the radio link is **unproven**
 - [ ] Run **both** units at once (`lora_test` on Freenove + `lora_bike_test` on Waveshare) and look for pings + acks
 - 🔁 Silent? → swap the E32's TXD/RXD wires (that fixed it on the Freenove!)
 - 📡 **Always attach the antenna before powering it**
@@ -160,7 +191,7 @@ Pick the env in PlatformIO's bottom bar, then **Upload**. Close the **Arduino ID
 
 - [ ] 🔥 Find out if the radar is dead or just unpowered
 - [ ] 🧭 Fix the IMU connection
-- [ ] 🌙 Test the back lights wiring
+- [ ] 🔌 Check the back lights' power and wires so they turn on
 - [ ] 💡 Test front lights, buttons + speaker on the new wiring
 - [ ] 📶 Two-unit LoRa test
 - [ ] 💻 Write the **combined program** (lights + brake + radar + LoRa), one piece at a time
