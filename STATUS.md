@@ -24,7 +24,7 @@
 | 🟡 | **IMU** | Not connected properly — needs to be looked back at |
 | 🟡 | **Back lights** | Need to be looked at — **power and wires need to be checked** to turn them on |
 | 🟡 | **LoRa** | Fully wired + program runs, but the radio link isn't proven yet |
-| ⚪ | **Front lights, buttons, speaker** | Soldered, **not tested** on the new wiring yet |
+| 🟢 | **Front lights, buttons, speaker** | **Work!** Still need an **extensive test** |
 | 🟢 | **Waveshare board** | Alive! Uploads work on **COM9** |
 
 > 💡 **Next tiny step:** check the radar's 5V and GND with a multimeter. That's it. Just that one thing. 💕
@@ -39,6 +39,7 @@
 - 📡 **Radar tuning** (100 m range, both directions, 1 km/h min speed) was accepted and read back on the Freenove — back when the radar still worked
 - 🖥️ **Radar screen** (`radar_display.html`) showed live radar frames — then got upgraded by jdriver0406 ("radar implemented into app")
 - 📶 **Bike LoRa program** uploads and runs on the Waveshare, sending `BIKE ping` every 3 s
+- 💡🔘🔊 **Front lights, buttons and speaker** work — still need an **extensive test** (checklist below 👇)
 
 **🔧 Done (built or soldered, not fully tested yet):**
 - 🔘 Buttons soldered: left **2**, right **41**, shared ground **40** (right button moved off 12 in code ✅)
@@ -103,6 +104,25 @@
 - 🧪 Wiring **not tested**
 - 🔗 All 3 LED controller boards are tied to **GPIO45** → front and rear switch on/off **together** (a rear-only "day mode" would need a physical switch or a free pin)
 - 🛑 Brake light idea: turns on when the IMU feels the bike **slowing down** or **stopped** → needs the IMU working first!
+
+---
+
+## 💡🔘🔊 Front Lights, Buttons + Speaker — work, need an extensive test
+
+They work! Now let's make sure they work **every** time 💪 (env: `waveshare_esp32s3_sim7670g`)
+
+- [ ] **Left** button short press → left signal blinks + tick-tock
+- [ ] **Right** button short press → right signal blinks + tick-tock
+- [ ] Press the same button again → signal turns **off** + beep
+- [ ] **Hold** either button ~1 s → **hazards** (both sides blink amber) — hold again → off
+- [ ] **Hold both** buttons → **horn** 📣
+- [ ] **Two quick taps** on both buttons → **hazards**
+- [ ] Switch from left → right without turning off first
+- [ ] Mash the buttons fast — does anything get stuck? 🫠
+- [ ] Leave it blinking for **10+ minutes** — still OK? Anything hot? 🔥
+- [ ] Wiggle the wires while it runs — any flicker or resets?
+- [ ] Try it on **battery power** (not USB) 🔋
+- [ ] Check brightness **outside in daylight** ☀️ and the speaker volume while riding
 
 ---
 
@@ -192,7 +212,7 @@ Pick the env in PlatformIO's bottom bar, then **Upload**. Close the **Arduino ID
 - [ ] 🔥 Find out if the radar is dead or just unpowered
 - [ ] 🧭 Fix the IMU connection
 - [ ] 🔌 Check the back lights' power and wires so they turn on
-- [ ] 💡 Test front lights, buttons + speaker on the new wiring
+- [ ] 💡 Extensive test of the front lights, buttons + speaker
 - [ ] 📶 Two-unit LoRa test
 - [ ] 💻 Write the **combined program** (lights + brake + radar + LoRa), one piece at a time
 - [ ] 🛑 Brake light logic from the IMU (needs riding tests to tune)
