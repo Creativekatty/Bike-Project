@@ -164,6 +164,8 @@
   .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid #2b3333; font-size: 11px; }
   .switch-row:first-of-type { border-top: 0; }
   .switch-row input { width: 38px; height: 21px; accent-color: var(--lime); cursor: pointer; }
+  .switch-row input:disabled, .switch-row select:disabled { opacity: .5; cursor: not-allowed; }
+  .switch-row select { max-width: 62%; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: 8px; padding: 7px; }
   .history-list { display: grid; gap: 8px; }
   .history-item { display: flex; justify-content: space-between; gap: 12px; padding: 13px; background: #151a1a; border-radius: 10px; font-size: 12px; }
   .history-item small { color: var(--muted); }
@@ -175,6 +177,16 @@
   .fall-card p { color: #b3bfbc; font-size: 12px; }
   .fall-actions { display: flex; gap: 8px; margin-top: 16px; }
   .fall-actions button { flex: 1; }
+  .contact-form { display: grid; gap: 10px; }
+  .contact-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+  .contact-field input { width: 100%; color: var(--text); background: var(--panel-raised); border: 1px solid var(--line); border-radius: 8px; padding: 9px; font: inherit; }
+  .contact-status { min-height: 16px; margin: 0 !important; color: var(--muted); font-size: 10px !important; }
+  .call-dialog { position: fixed; z-index: 25; inset: 0; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.76); }
+  .call-dialog.open { display: flex; }
+  .call-card { width: min(390px, 100%); padding: 22px; border: 1px solid #495355; border-radius: 17px; background: #202728; box-shadow: 0 20px 70px rgba(0,0,0,.55); text-align: center; }
+  .call-card h2 { margin: 9px 0 4px; font-size: 21px; }
+  .call-card .call-number { color: var(--lime); font-size: 16px; }
+  .call-card p { color: #b3bfbc; font-size: 12px; }
   .toast { position: fixed; z-index: 30; right: 18px; bottom: 18px; max-width: min(360px, calc(100vw - 36px)); padding: 11px 14px; background: #2a3332; border: 1px solid #4b5857; border-radius: 10px; box-shadow: 0 8px 30px #0007; font-size: 12px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: .2s; }
   .toast.show { opacity: 1; transform: translateY(0); }
   body.rider-mode { overflow: hidden; }
@@ -332,11 +344,24 @@
           <div class="setting-actions"><button id="settingsConnect">Connect radar</button><button id="settingsDemo">Try demo</button><label for="range">Range</label><select id="range"><option value="25">25 m</option><option value="50">50 m</option><option value="100" selected>100 m</option></select></div>
         </div>
         <div class="setting-card">
+          <h3>Bike controller</h3><p id="bikeSummary">Not connected. Connect the Waveshare bike controller for its speaker and lights.</p>
+          <div class="setting-actions"><button id="bikeConnect">Connect bike controller</button></div>
+          <label class="switch-row">Front lights <input type="checkbox" id="frontLightsToggle" disabled></label>
+          <label class="switch-row">Back lights <input type="checkbox" id="backLightsToggle" disabled></label>
+          <p class="muted" style="margin-top:10px;font-size:10px">Rear outputs assume active-high controller inputs and use GPIO 4–6, which conflict with the SD-card interface. Verify rear wiring/power before enabling; don't use the SD card with rear lights.</p>
+        </div>
+        <div class="setting-card">
           <h3>Music services</h3><p id="serviceSummary">Choose a music service for ride playback.</p>
           <div class="setting-actions"><button class="serviceButton" data-service="Spotify">Connect Spotify</button><button class="serviceButton" data-service="Apple Music">Connect Apple Music</button></div>
         </div>
         <div class="setting-card">
           <h3>Rider alerts</h3>
+          <label class="switch-row" for="alertOutput">Alert sound output
+            <select id="alertOutput" aria-label="Alert sound output">
+              <option value="bike">Bike speaker (default)</option>
+              <option value="headphones">Headphones / device audio</option>
+            </select>
+          </label>
           <label class="switch-row">Audible radar alerts <input type="checkbox" id="audibleToggle" checked></label>
           <label class="switch-row">Haptic alert preference <input type="checkbox" id="hapticToggle" checked></label>
           <label class="switch-row">Lower music during alerts <input type="checkbox" id="duckToggle" checked></label>
@@ -346,11 +371,16 @@
           <div class="setting-actions"><button class="primary" id="testFall">Test fall alert</button><span class="muted" id="altitudeStatus">Waiting for altitude data</span></div>
         </div>
         <div class="setting-card">
-          <h3>Call contact</h3><p>Save a number to use the rider-mode call button or fall-alert help action. Your device's phone app places the call.</p>
-          <div class="setting-actions"><label for="contactNumber">Phone</label><input id="contactNumber" type="tel" autocomplete="tel" placeholder="Enter a phone number" style="min-width:190px;color:var(--text);background:var(--panel-raised);border:1px solid var(--line);border-radius:8px;padding:8px"></div>
+          <h3>Test call contact</h3><p>Add a contact for the Ride call button and fall-alert help test.</p>
+          <form id="contactForm" class="contact-form" novalidate>
+            <label class="contact-field" for="contactName">Contact name<input id="contactName" type="text" autocomplete="name" maxlength="60" placeholder="e.g. Alex"></label>
+            <label class="contact-field" for="contactNumber">Phone number<input id="contactNumber" type="tel" autocomplete="tel" maxlength="40" placeholder="e.g. 555-0100"></label>
+            <div class="setting-actions"><button class="primary" type="submit">Save contact</button><button type="button" id="clearContact">Clear</button></div>
+            <p class="contact-status" id="contactStatus" role="status">No contact saved. Contact stays in this browser.</p>
+          </form>
         </div>
       </div>
-      <p class="muted" style="margin:15px 0 0;font-size:10px">Radar and fall alerts support awareness and are not a guarantee of safety. Music and calls shown here are app controls; playback and calling require a connected service/device.</p>
+      <p class="muted" style="margin:15px 0 0;font-size:10px">Radar and fall alerts support awareness and are not a guarantee of safety. Bike lights and speaker require the Waveshare bike controller; rear light wiring still needs physical verification. Headphone alerts use your browser's selected audio output. Test calls are simulated locally and never dial or send contact data.</p>
     </article>
   </section>
 
@@ -367,6 +397,15 @@
     <h2 id="fallTitle">A fall has been detected. Are you okay or would you like to call for help?</h2>
     <p id="fallDescription">A sudden altitude change triggered this possible-fall check. An altitude change alone does not confirm a fall.</p>
     <div class="fall-actions"><button class="primary" id="helpButton">☎ Call for help</button><button id="okayButton">✓ I'm okay</button></div>
+  </div>
+</div>
+<div class="call-dialog" id="callDialog" role="dialog" aria-modal="true" aria-labelledby="callTitle" aria-describedby="callDescription">
+  <div class="call-card">
+    <div class="alert-label">TEST CALL · LOCAL ONLY</div>
+    <h2 id="callTitle">Test call</h2>
+    <div class="call-number" id="callNumber"></div>
+    <p id="callDescription">This is an in-app simulation. No phone call is placed and no information is sent.</p>
+    <button class="primary" id="endCallButton">End test call</button>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -399,6 +438,16 @@ let altitudeAt = 0;
 let toastTimer = null;
 let audioContext = null;
 let wasApproaching = false;
+let bikePort = null;
+let bikeReader = null;
+let bikePipePromise = null;
+let bikeLightsReady = false;
+let frontLightsOn = false;
+let backLightsOn = false;
+let bikeStatusTimer = null;
+let alertedBikeUnavailable = false;
+let savedCallContact = null;
+const CALL_CONTACT_STORAGE_KEY = 'velo-radar.test-call-contact';
 
 const songs = [
   { title: 'A Walk - Tycho', detail: 'Spotify · Coastal cadence' },
@@ -581,6 +630,7 @@ function detectAltitudeSample(altitude) {
 }
 
 function openFallDialog() {
+  if (!$('fallDialog').classList.contains('open')) playAlertSound();
   $('fallDialog').classList.add('open');
   $('okayButton').focus();
 }
@@ -612,18 +662,38 @@ function primeAlertAudio() {
   }
 }
 
-function notifyApproach() {
-  if ($('audibleToggle').checked && audioContext && audioContext.state === 'running') {
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(.08, audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .22);
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + .22);
+function playHeadphoneAlert() {
+  if (!audioContext || audioContext.state !== 'running') {
+    showToast('Browser audio is unavailable; visual radar alerts remain active.');
+    return;
   }
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.frequency.value = 880;
+  gain.gain.setValueAtTime(.08, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .22);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + .22);
+}
+
+function playAlertSound() {
+  if (!$('audibleToggle').checked) return;
+  if ($('alertOutput').value === 'headphones') {
+    playHeadphoneAlert();
+  } else if (bikePort && bikeLightsReady) {
+    sendBikeCommand('BIKE ALERT');
+  } else if (!alertedBikeUnavailable) {
+    alertedBikeUnavailable = true;
+    showToast(bikePort
+      ? 'Bike controller did not respond. Upload the bike-controls firmware to enable its speaker.'
+      : 'Connect the bike controller to play alerts through the bike speaker.');
+  }
+}
+
+function notifyApproach() {
+  playAlertSound();
   if ($('hapticToggle').checked && navigator.vibrate) navigator.vibrate([120, 60, 120]);
 }
 
@@ -682,6 +752,121 @@ function disconnectCleanup() {
   updateConnection(false, demoTimer ? 'Radar demo active' : 'Radar disconnected');
 }
 
+function updateBikeControls() {
+  $('frontLightsToggle').checked = frontLightsOn;
+  $('backLightsToggle').checked = backLightsOn;
+  $('frontLightsToggle').disabled = !bikeLightsReady;
+  $('backLightsToggle').disabled = !bikeLightsReady;
+}
+
+function handleBikeLine(line) {
+  const status = line.match(/^BIKE STATUS FRONT=([01]) REAR=([01])$/i);
+  const ack = line.match(/^BIKE OK (FRONT|REAR)=([01])$/i);
+  if (status) {
+    clearTimeout(bikeStatusTimer);
+    bikeStatusTimer = null;
+    frontLightsOn = status[1] === '1';
+    backLightsOn = status[2] === '1';
+    bikeLightsReady = true;
+    updateBikeControls();
+    $('bikeSummary').textContent = `Connected · Front lights ${frontLightsOn ? 'on' : 'off'} · Back lights ${backLightsOn ? 'on' : 'off'}.`;
+  } else if (ack) {
+    if (ack[1].toUpperCase() === 'FRONT') frontLightsOn = ack[2] === '1';
+    else backLightsOn = ack[2] === '1';
+    updateBikeControls();
+    $('bikeSummary').textContent = `Connected · Front lights ${frontLightsOn ? 'on' : 'off'} · Back lights ${backLightsOn ? 'on' : 'off'}.`;
+  } else if (/^BIKE ERR\b/i.test(line)) {
+    showToast(`Bike controller: ${line}`);
+  }
+}
+
+async function sendBikeCommand(command) {
+  if (!bikePort || !bikePort.writable) return false;
+  let writer;
+  try {
+    writer = bikePort.writable.getWriter();
+    await writer.write(new TextEncoder().encode(`${command}\n`));
+    return true;
+  } catch (error) {
+    showToast(`Could not send bike command: ${error.message}`);
+    return false;
+  } finally {
+    if (writer) writer.releaseLock();
+  }
+}
+
+async function connectBike() {
+  if (!('serial' in navigator)) {
+    showToast('Web Serial is unavailable here. Open this page in Chrome or Edge.');
+    return;
+  }
+  try {
+    bikePort = await navigator.serial.requestPort();
+    await bikePort.open({ baudRate: 115200 });
+    alertedBikeUnavailable = false;
+    $('bikeConnect').textContent = 'Disconnect bike controller';
+    $('bikeSummary').textContent = 'Controller connected. Waiting for light status…';
+    bikeLightsReady = false;
+    updateBikeControls();
+    const decoder = new TextDecoderStream();
+    bikePipePromise = bikePort.readable.pipeTo(decoder.writable);
+    bikePipePromise.catch(() => {});
+    bikeReader = decoder.readable.getReader();
+    await sendBikeCommand('BIKE?');
+    bikeStatusTimer = setTimeout(() => {
+      if (bikePort && !bikeLightsReady) {
+        $('bikeSummary').textContent = 'Connected, but no bike-controls firmware response. Upload the latest bike firmware; light controls are disabled.';
+      }
+    }, 2500);
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await bikeReader.read();
+      if (done) break;
+      buffer += value;
+      let index;
+      while ((index = buffer.search(/\r?\n/)) >= 0) {
+        handleBikeLine(buffer.slice(0, index).trim());
+        buffer = buffer.slice(buffer[index] === '\r' ? index + 2 : index + 1);
+      }
+    }
+    bikeReader.releaseLock();
+    bikeReader = null;
+    await bikePipePromise.catch(() => {});
+    bikePipePromise = null;
+  } catch (error) {
+    if (error.name !== 'NotFoundError') showToast(`Could not connect to bike controller: ${error.message}. Close any serial monitor using the port.`);
+  }
+  bikeCleanup();
+}
+
+async function disconnectBike() {
+  const activePort = bikePort;
+  const activePipePromise = bikePipePromise;
+  try {
+    if (bikeReader) await bikeReader.cancel();
+  } catch (error) {
+    showToast(`Could not stop the bike controller reader: ${error.message}`);
+  }
+  if (activePipePromise) await activePipePromise.catch(() => {});
+  try {
+    if (activePort) await activePort.close();
+  } catch (error) {
+    showToast(`Could not close the bike controller port: ${error.message}`);
+  }
+  bikeCleanup();
+}
+
+function bikeCleanup() {
+  clearTimeout(bikeStatusTimer);
+  bikeStatusTimer = null;
+  bikePort = null;
+  bikeReader = null;
+  bikeLightsReady = false;
+  $('bikeConnect').textContent = 'Connect bike controller';
+  $('bikeSummary').textContent = 'Not connected. Connect the Waveshare bike controller for its speaker and lights.';
+  updateBikeControls();
+}
+
 async function startDemo() {
   primeAlertAudio();
   if (port) await disconnect();
@@ -718,19 +903,97 @@ function stopDemo() {
   demoTimer = null;
 }
 
-function callContact() {
-  const number = $('contactNumber').value.trim();
-  const dialable = number.replace(/[^\d+*#,;]/g, '');
-  if (!dialable || !/[\d]/.test(dialable)) {
-    showToast('Add a phone number in Connect settings before placing a call.');
-    switchView('connect');
+function updateCallContactUI() {
+  if (savedCallContact) {
+    $('contactName').value = savedCallContact.name;
+    $('contactNumber').value = savedCallContact.phone;
+    $('callButton').setAttribute('aria-label', `Start test call to ${savedCallContact.name}`);
+  } else {
+    $('contactName').value = '';
+    $('contactNumber').value = '';
+    $('contactStatus').textContent = 'No contact saved. Contact stays in this browser.';
+    $('callButton').setAttribute('aria-label', 'Add a call contact in Connect settings');
+  }
+}
+
+function loadCallContact() {
+  try {
+    const raw = localStorage.getItem(CALL_CONTACT_STORAGE_KEY);
+    if (!raw) {
+      updateCallContactUI();
+      return;
+    }
+    const contact = JSON.parse(raw);
+    if (!contact || typeof contact.name !== 'string' || typeof contact.phone !== 'string' ||
+        !contact.name.trim() || contact.phone.replace(/\D/g, '').length < 3) {
+      throw new Error('Saved contact has an invalid format.');
+    }
+    savedCallContact = { name: contact.name.trim(), phone: contact.phone.trim() };
+    updateCallContactUI();
+    $('contactStatus').textContent = `Saved locally in this browser: ${savedCallContact.name}.`;
+  } catch (error) {
+    $('contactStatus').textContent = `Could not load saved contact: ${error.message}`;
+    showToast(`Could not load the saved test contact: ${error.message}`);
+  }
+}
+
+function saveCallContact(event) {
+  event.preventDefault();
+  const name = $('contactName').value.trim();
+  const phone = $('contactNumber').value.trim();
+  const digits = phone.replace(/\D/g, '');
+  if (!name || !/^[+()\d\s.-]+$/.test(phone) || digits.length < 3 || digits.length > 20) {
+    $('contactStatus').textContent = 'Enter a contact name and a valid phone number (3–20 digits).';
     $('contactNumber').focus();
+    return;
+  }
+  savedCallContact = { name, phone };
+  try {
+    localStorage.setItem(CALL_CONTACT_STORAGE_KEY, JSON.stringify(savedCallContact));
+    $('contactStatus').textContent = `Saved locally in this browser: ${name}. Test calls do not dial or send this number.`;
+    showToast('Test contact saved in this browser only.');
+  } catch (error) {
+    $('contactStatus').textContent = `Contact is available until this page closes, but could not be saved: ${error.message}`;
+    showToast(`Could not save contact to this browser: ${error.message}`);
+  }
+  updateCallContactUI();
+}
+
+function clearCallContact() {
+  savedCallContact = null;
+  updateCallContactUI();
+  try {
+    localStorage.removeItem(CALL_CONTACT_STORAGE_KEY);
+    showToast('Saved test contact cleared from this browser.');
+  } catch (error) {
+    $('contactStatus').textContent = `Contact cleared for this session, but browser storage could not be cleared: ${error.message}`;
+    showToast(`Could not clear the saved contact: ${error.message}`);
+  }
+}
+
+function callContact(source) {
+  if (!savedCallContact) {
+    $('fallDialog').classList.remove('open');
+    showToast('Add and save a call contact first.');
+    switchView('connect');
+    $('contactForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('contactName').focus();
     return false;
   }
-  const link = document.createElement('a');
-  link.href = `tel:${dialable}`;
-  link.click();
+  $('fallDialog').classList.remove('open');
+  $('callTitle').textContent = source === 'fall'
+    ? `Test help call to ${savedCallContact.name}`
+    : `Test call to ${savedCallContact.name}`;
+  $('callNumber').textContent = savedCallContact.phone;
+  $('callDialog').classList.add('open');
+  $('endCallButton').focus();
+  showToast('Test call started. No call or data was sent.');
   return true;
+}
+
+function endTestCall() {
+  $('callDialog').classList.remove('open');
+  showToast('Test call ended. No phone call was placed.');
 }
 
 function changeTrack(direction) {
@@ -751,6 +1014,7 @@ function switchView(name) {
 
 $('connectButton').addEventListener('click', () => port ? disconnect() : connect());
 $('settingsConnect').addEventListener('click', () => port ? disconnect() : connect());
+$('bikeConnect').addEventListener('click', () => bikePort ? disconnectBike() : connectBike());
 $('demoButton').addEventListener('click', startDemo);
 $('settingsDemo').addEventListener('click', startDemo);
 $('modeButton').addEventListener('click', () => setRiderMode(!document.body.classList.contains('rider-mode')));
@@ -765,8 +1029,10 @@ $('musicToggle').addEventListener('click', () => {
 $('previousTrack').addEventListener('click', () => changeTrack(-1));
 $('nextTrack').addEventListener('click', () => changeTrack(1));
 $('callButton').addEventListener('click', () => {
-  callContact();
+  callContact('ride');
 });
+$('contactForm').addEventListener('submit', saveCallContact);
+$('clearContact').addEventListener('click', clearCallContact);
 $('testFall').addEventListener('click', () => {
   lastAltitude = 120;
   altitudeAt = Date.now() - 300;
@@ -777,8 +1043,14 @@ $('okayButton').addEventListener('click', () => {
   showToast("Glad you're okay. Fall alert dismissed.");
 });
 $('helpButton').addEventListener('click', () => {
-  $('fallDialog').classList.remove('open');
-  if (callContact()) showToast('Opening your phone app to call your saved contact.');
+  callContact('fall');
+});
+$('endCallButton').addEventListener('click', endTestCall);
+$('callDialog').addEventListener('click', event => {
+  if (event.target === $('callDialog')) endTestCall();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('callDialog').classList.contains('open')) endTestCall();
 });
 $('fallDialog').addEventListener('click', event => {
   if (event.target === $('fallDialog')) showToast('Choose “I’m okay” or “Call for help” to clear the fall alert.');
@@ -793,7 +1065,34 @@ document.querySelectorAll('.serviceButton').forEach(button => button.addEventLis
 $('audibleToggle').addEventListener('change', event => showToast(`Audible radar alerts ${event.target.checked ? 'enabled' : 'disabled'}.`));
 $('hapticToggle').addEventListener('change', event => showToast(`Haptic alert preference ${event.target.checked ? 'enabled' : 'disabled'}.`));
 $('duckToggle').addEventListener('change', event => showToast(`Lower music during alerts ${event.target.checked ? 'enabled' : 'disabled'}.`));
+$('alertOutput').addEventListener('change', event => {
+  if (event.target.value === 'headphones') primeAlertAudio();
+  else showToast('Radar and fall alerts will use the bike speaker when the bike controller is connected.');
+});
+$('frontLightsToggle').addEventListener('change', async event => {
+  const enabled = event.target.checked;
+  const sent = await sendBikeCommand(`BIKE FRONT ${enabled ? 1 : 0}`);
+  if (!sent) {
+    event.target.checked = frontLightsOn;
+    return;
+  }
+  frontLightsOn = enabled;
+  updateBikeControls();
+  $('bikeSummary').textContent = `Command sent · Front lights ${enabled ? 'on' : 'off'} · Back lights ${backLightsOn ? 'on' : 'off'}.`;
+});
+$('backLightsToggle').addEventListener('change', async event => {
+  const enabled = event.target.checked;
+  const sent = await sendBikeCommand(`BIKE REAR ${enabled ? 1 : 0}`);
+  if (!sent) {
+    event.target.checked = backLightsOn;
+    return;
+  }
+  backLightsOn = enabled;
+  updateBikeControls();
+  $('bikeSummary').textContent = `Command sent · Front lights ${frontLightsOn ? 'on' : 'off'} · Back lights ${enabled ? 'on' : 'off'}.`;
+});
 
+loadCallContact();
 setInterval(() => {
   updateRideLabel();
   if (rideStarted) {
