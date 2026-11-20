@@ -22,7 +22,7 @@
 |---|---|---|
 | 🔴 | **Radar** | **Cooked.** Zero data on the Waveshare |
 | 🟡 | **IMU** | Not connected properly — needs to be looked back at |
-| 🟡 | **Back lights** | Need to be looked at — **power and wires need to be checked** to turn them on |
+| 🟡 | **Back lights** | App/firmware controls added; **power and wires still need to be checked** before use |
 | 🟡 | **LoRa** | Fully wired + program runs, but the radio link isn't proven yet |
 | 🟢 | **Front lights, buttons, speaker** | **Work!** Still need an **extensive test** |
 | 🟢 | **Waveshare board** | Alive! Uploads work on **COM9** |
@@ -100,9 +100,10 @@
   | rear-right blinker data | **5** |
   | brake lights data | **6** |
 
-- 🚫 **No code yet** for rear blinkers, brake lights, or the rear on/off
+- ⚠️ Basic app-controlled rear on/off outputs are implemented; rear blink patterns and brake logic are not
 - 🧪 Wiring **not tested**
-- 🔗 All 3 LED controller boards are tied to **GPIO45** → front and rear switch on/off **together** (a rear-only "day mode" would need a physical switch or a free pin)
+- 🔗 All LED controller boards share the **GPIO45 power switch**; the app's separate data outputs request front and rear on/off independently
+- 🖥️ App commands now switch rear-left, rear-right, and brake controller outputs together; confirm the boards' active-high behavior and wiring before riding
 - 🛑 Brake light idea: turns on when the IMU feels the bike **slowing down** or **stopped** → needs the IMU working first!
 
 ---
@@ -202,6 +203,8 @@ Pick the env in PlatformIO's bottom bar, then **Upload**. Close the **Arduino ID
 | Lights + buttons + speaker | `waveshare_esp32s3_sim7670g` | Waveshare / COM9 |
 
 🖥️ **Radar screen:** open `radar_display.html` in **Chrome or Edge** → **Connect radar** → pick the port.
+
+🖥️ **App bike controls:** connect the separate Waveshare controller in **Connect** to use the bike buzzer for alerts and switch the front/rear lights. The controller firmware accepts `BIKE?`, `BIKE ALERT`, `BIKE FRONT 0|1`, and `BIKE REAR 0|1` over USB serial at 115200 baud. Radar and bike controller are separate serial devices.
 
 > 🪄 COM numbers can change when you switch USB ports — check **Device Manager** if an upload fails.
 

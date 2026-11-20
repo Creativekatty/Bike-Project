@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
+#include <string.h>
 #include "speaker.h"
 
 // Buttons wired between their GPIO and GPIO40 (uses the internal pull-ups;
@@ -12,6 +13,10 @@ const int SWITCH_PIN = 45;
 // DIN (data in) of each WS2812B ring
 const int LEFT_RING_DATA_PIN = 3;
 const int RIGHT_RING_DATA_PIN = 42;
+// Rear LED controller inputs; all three boards share the LED power switch above.
+const int REAR_LEFT_LIGHT_PIN = 4;
+const int REAR_RIGHT_LIGHT_PIN = 5;
+const int REAR_BRAKE_LIGHT_PIN = 6;
 
 const int LEDS_PER_RING = 7;
 const uint8_t BRIGHTNESS = 80;  // 0-255
@@ -32,7 +37,11 @@ const char* MODE_NAMES[] = {"off", "left signal", "right signal", "hazards"};
 
 Mode mode = OFF;
 bool blinkOn = false;
+bool frontLightsOn = false;
+bool rearLightsOn = false;
 unsigned long lastBlinkMs = 0;
+char commandBuffer[32];
+size_t commandLength = 0;
 
 struct Button {
   const char* name;
@@ -56,16 +65,81 @@ unsigned long lastComboTapMs = 0;  // 0 = no recent tap
 void showRings() {
   uint32_t red = Adafruit_NeoPixel::Color(255, 0, 0);
   uint32_t yellow = Adafruit_NeoPixel::Color(255, 80, 0);  // orange-amber, like car hazards
+  uint32_t white = frontLightsOn ? Adafruit_NeoPixel::Color(255, 255, 255) : 0;
+  uint32_t left = white;
+  uint32_t right = white;
 
   if (mode == HAZARDS) {
-    leftRing.fill(blinkOn ? yellow : 0);
-    rightRing.fill(blinkOn ? yellow : 0);
-  } else {
-    leftRing.fill(mode == LEFT && blinkOn ? red : 0);
-    rightRing.fill(mode == RIGHT && blinkOn ? red : 0);
+    if (blinkOn) left = right = yellow;
+  } else if (mode == LEFT && blinkOn) {
+    left = red;
+  } else if (mode == RIGHT && blinkOn) {
+    right = red;
   }
+  leftRing.fill(left);
+  rightRing.fill(right);
   leftRing.show();
   rightRing.show();
+}
+
+void showRearLights() {
+  digitalWrite(REAR_LEFT_LIGHT_PIN, rearLightsOn ? HIGH : LOW);
+  digitalWrite(REAR_RIGHT_LIGHT_PIN, rearLightsOn ? HIGH : LOW);
+  digitalWrite(REAR_BRAKE_LIGHT_PIN, rearLightsOn ? HIGH : LOW);
+}
+
+bool parseLightCommand(const char* line, const char* prefix, bool& state) {
+  size_t prefixLength = strlen(prefix);
+  if (strncmp(line, prefix, prefixLength) != 0) return false;
+  const char* value = line + prefixLength;
+  if (strcmp(value, "1") == 0) state = true;
+  else if (strcmp(value, "0") == 0) state = false;
+  else return false;
+  return true;
+}
+
+void handleSerialCommand(char* line) {
+  if (strcmp(line, "BIKE?") == 0) {
+    Serial.printf("BIKE STATUS FRONT=%d REAR=%d\n", frontLightsOn, rearLightsOn);
+    return;
+  }
+  if (strcmp(line, "BIKE ALERT") == 0) {
+    speakerBeep(180);
+    Serial.println("BIKE OK ALERT");
+    return;
+  }
+  if (parseLightCommand(line, "BIKE FRONT ", frontLightsOn)) {
+    showRings();
+    Serial.printf("BIKE OK FRONT=%d\n", frontLightsOn);
+    return;
+  }
+  if (parseLightCommand(line, "BIKE REAR ", rearLightsOn)) {
+    showRearLights();
+    Serial.printf("BIKE OK REAR=%d\n", rearLightsOn);
+    return;
+  }
+  if (strncmp(line, "BIKE FRONT ", 11) == 0 || strncmp(line, "BIKE REAR ", 10) == 0) {
+    Serial.println("BIKE ERR Light state must be 0 or 1");
+    return;
+  }
+  if (strncmp(line, "BIKE", 4) == 0) Serial.println("BIKE ERR Unknown command");
+}
+
+void readSerialCommands() {
+  while (Serial.available()) {
+    char ch = static_cast<char>(Serial.read());
+    if (ch == '\r') continue;
+    if (ch == '\n') {
+      commandBuffer[commandLength] = '\0';
+      handleSerialCommand(commandBuffer);
+      commandLength = 0;
+    } else if (commandLength < sizeof(commandBuffer) - 1) {
+      commandBuffer[commandLength++] = ch;
+    } else {
+      commandLength = 0;
+      Serial.println("BIKE ERR Command too long");
+    }
+  }
 }
 
 // Pressing the same mode again turns it off, otherwise switch to the new one
@@ -153,6 +227,10 @@ void setup() {
   pinMode(RIGHT_BUTTON_PIN, INPUT_PULLUP);
   pinMode(SWITCH_PIN, OUTPUT);
   digitalWrite(SWITCH_PIN, HIGH);
+  pinMode(REAR_LEFT_LIGHT_PIN, OUTPUT);
+  pinMode(REAR_RIGHT_LIGHT_PIN, OUTPUT);
+  pinMode(REAR_BRAKE_LIGHT_PIN, OUTPUT);
+  showRearLights();
 
   leftRing.begin();
   leftRing.setBrightness(BRIGHTNESS);
@@ -165,6 +243,7 @@ void setup() {
 }
 
 void loop() {
+  readSerialCommands();
   updateButton(leftButton, rightButton);
   updateButton(rightButton, leftButton);
   updateCombo();
