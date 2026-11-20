@@ -4,9 +4,13 @@
 // TRIG/PWM input of the MOSFET switch module that powers the buzzer
 const int SPEAKER_SWITCH_PIN = 39;
 
+// false = speaker disabled: no PWM, the switch pin is held LOW so the buzzer stays off.
+// Set back to true to turn the speaker on again.
+const bool SPEAKER_ENABLED = true;
+
 // Volume 1-100 %. The buzzer is PWM'd at 20 kHz (the module's max, and above
 // hearing) so it sees a lower average voltage and sounds quieter.
-const int VOLUME_PERCENT = 30;
+const int VOLUME_PERCENT = 100;
 const int PWM_FREQ_HZ = 20000;
 const int PWM_RESOLUTION_BITS = 8;
 const int PWM_CHANNEL = 0;  // only used on Arduino core 2.x
@@ -16,7 +20,7 @@ const int PWM_CHANNEL = 0;  // only used on Arduino core 2.x
 const unsigned long TICK_MS = 4;
 const unsigned long TOCK_MS = 4;
 const int TICK_VOLUME_PERCENT = VOLUME_PERCENT;
-const int TOCK_VOLUME_PERCENT = VOLUME_PERCENT / 2;
+const int TOCK_VOLUME_PERCENT = VOLUME_PERCENT;
 
 const unsigned long OFF_BEEP_MS = 150;
 
@@ -29,6 +33,7 @@ unsigned long beepStartMs = 0;
 unsigned long beepLengthMs = 0;
 
 static void writeDuty(uint32_t duty) {
+  if (!SPEAKER_ENABLED) return;
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcWrite(SPEAKER_SWITCH_PIN, duty);
 #else
@@ -37,6 +42,11 @@ static void writeDuty(uint32_t duty) {
 }
 
 void speakerBegin() {
+  if (!SPEAKER_ENABLED) {
+    pinMode(SPEAKER_SWITCH_PIN, OUTPUT);
+    digitalWrite(SPEAKER_SWITCH_PIN, LOW);
+    return;
+  }
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ledcAttach(SPEAKER_SWITCH_PIN, PWM_FREQ_HZ, PWM_RESOLUTION_BITS);
 #else
